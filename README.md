@@ -1,36 +1,100 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PixelPlace Frontend
+
+A decentralized collaborative canvas on Ethereum where users can pay a small fee to paint individual pixels.
+
+## Overview
+
+PixelPlace is a web application that interfaces with a smart contract on the Ethereum blockchain. It allows users to view and interact with a collaborative canvas where each pixel can be painted by paying a small fee.
+
+## Features
+
+- Interactive canvas with zoom and pan functionality
+- Real-time updates when pixels are painted
+- Wallet integration for Ethereum transactions
+- Color picker for selecting pixel colors
+- Activity feed showing recent pixel updates
+- Responsive design for all screen sizes
+
+## Technology Stack
+
+- **Frontend Framework**: React.js with TypeScript
+- **UI Framework**: Next.js
+- **Styling**: TailwindCSS
+- **Animations**: Framer Motion
+- **Web3 Integration**: ethers.js v6
+- **Wallet Connection**: RainbowKit
+- **State Management**: Zustand
+- **Data Fetching**: React Query
 
 ## Getting Started
 
-First, run the development server:
+### Prerequisites
+
+- Node.js (v16 or later)
+- npm or yarn
+- MetaMask or another Ethereum wallet
+
+### Installation
+
+1. Clone the repository:
+
+   ```bash
+   git clone https://github.com/yourusername/pixelplace-frontend.git
+   cd pixelplace-frontend
+   ```
+
+2. Install dependencies:
+
+   ```bash
+   npm install
+   ```
+
+3. Create a `.env.local` file in the root directory with the following variables:
+
+   ```bash
+   NEXT_PUBLIC_WALLETCONNECT_PROJECT_ID=YOUR_WALLETCONNECT_PROJECT_ID
+   NEXT_PUBLIC_DEFAULT_CHAIN_ID=11155111
+   NEXT_PUBLIC_SEPOLIA_RPC_URL=https://sepolia.infura.io/v3/YOUR_INFURA_ID
+   NEXT_PUBLIC_MAINNET_RPC_URL=https://mainnet.infura.io/v3/YOUR_INFURA_ID
+   ```
+
+4. Update the contract addresses in `src/config/networks.ts` with your deployed contract addresses.
+
+### Running the Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) in your browser to see the application.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Smart Contract Integration
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+The frontend interacts with a PixelPlace smart contract that has the following main functions:
 
-## Learn More
+- `getPixelColor(x, y)`: Get the color of a specific pixel
+- `getCanvasSection(startX, startY, width, height)`: Get a section of the canvas
+- `paintPixel(x, y, color)`: Paint a pixel with a specific color (requires payment)
 
-To learn more about Next.js, take a look at the following resources:
+The contract also emits events that the frontend listens to for real-time updates:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- `PixelPainted`: Emitted when a pixel is painted
+- `FeeUpdated`: Emitted when the pixel fee is updated
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+## Deployment
 
-## Deploy on Vercel
+The application can be deployed to Vercel, Netlify, or any other hosting service that supports Next.js applications.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```bash
+npm run build
+npm run start
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## License
+
+This project is licensed under the MIT License - see the LICENSE file for details.
+
+## Acknowledgements
+
+- Inspired by Reddit's r/place and Satoshi's Place
+- Built with Next.js, TailwindCSS, and ethers.js
