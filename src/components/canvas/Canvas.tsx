@@ -15,6 +15,7 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [isMouseDown, setIsMouseDown] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [updateIntervalId, setUpdateIntervalId] = useState<NodeJS.Timeout | null>(null);
   
   // Get state from stores
   const {
@@ -72,6 +73,46 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
       }
     }
   }, [canvasService, getVisibleChunks, chunks, loadingChunks, setChunk, setChunkLoading, width, height]);
+
+  // Fetch all visible chunks periodically to keep the canvas updated
+  const setupPeriodicUpdates = useCallback(() => {
+    if (updateIntervalId) {
+      clearInterval(updateIntervalId);
+    }
+
+    const intervalId = setInterval(async () => {
+      if (!canvasService) return;
+      
+      const visibleChunks = getVisibleChunks();
+      
+      // Update all visible chunks regardless of their loading state
+      for (const { startX, startY } of visibleChunks) {
+        try {
+          // Get chunk size (should match the store's chunkSize)
+          const chunkSize = 20; // This should be dynamic in a real app
+          
+          // Request chunk data from service
+          const chunkData = await canvasService.getCanvasSection(
+            startX,
+            startY,
+            Math.min(chunkSize, width - startX),
+            Math.min(chunkSize, height - startY)
+          );
+          
+          // Store chunk data
+          setChunk(startX, startY, chunkData);
+        } catch (error) {
+          console.error(`Error updating chunk at (${startX}, ${startY}):`, error);
+        }
+      }
+    }, 1000); // Update every 1 second
+    
+    setUpdateIntervalId(intervalId);
+    
+    return () => {
+      clearInterval(intervalId);
+    };
+  }, [canvasService, getVisibleChunks, setChunk, width, height]);
   
   // Render the canvas
   const renderCanvas = useCallback(() => {
@@ -164,6 +205,9 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
     // Load initial chunks
     loadVisibleChunks();
     
+    // Set up periodic updates
+    const cleanupUpdates = setupPeriodicUpdates();
+    
     // Set up window resize listener
     const handleResize = () => {
       if (canvas) {
@@ -189,8 +233,12 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
     return () => {
       window.removeEventListener('resize', handleResize);
       cancelAnimationFrame(animationFrameId);
+      if (updateIntervalId) {
+        clearInterval(updateIntervalId);
+      }
+      cleanupUpdates();
     };
-  }, [canvasSizeX, canvasSizeY, renderCanvas, loadVisibleChunks]);
+  }, [canvasSizeX, canvasSizeY, renderCanvas, loadVisibleChunks, setupPeriodicUpdates]);
   
   // Handle wheel event for zooming
   const handleWheel = (e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -253,10 +301,8 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
     setIsMouseDown(false);
   };
   
-  // Handle click to paint pixel
-  const handleClick = async (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!canvasService || isLoading) return;
-    
+  // Handle click to select a pixel (no longer directly painting)
+  const handleClick = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
     
@@ -269,29 +315,37 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
     
     // Check if click is within canvas bounds
     if (pixelX >= 0 && pixelX < width && pixelY >= 0 && pixelY < height) {
-      try {
-        setIsLoading(true);
+      // Just select the pixel, don't paint yet
+      setSelectedPixel(pixelX, pixelY);
+    }
+  };
+
+  // Handle the paint button click - now only sends transaction when button is clicked
+  const handlePaintButtonClick = async () => {
+    if (!canvasService || isLoading || viewport.selectedX === null || viewport.selectedY === null) return;
+    
+    try {
+      setIsLoading(true);
+      
+      // Paint the pixel
+      const result = await canvasService.paintPixel(viewport.selectedX, viewport.selectedY, currentColor);
+      
+      if (result.success) {
+        console.log(`Pixel painted at (${viewport.selectedX}, ${viewport.selectedY})`);
+      } else {
+        console.error('Failed to paint pixel:', result.error);
         
-        // Paint the pixel
-        const result = await canvasService.paintPixel(pixelX, pixelY, currentColor);
-        
-        if (result.success) {
-          console.log(`Pixel painted at (${pixelX}, ${pixelY})`);
+        // Show a more user-friendly error for wallet connection issues
+        if (result.error === 'Wallet not connected') {
+          alert('Please connect your wallet to paint pixels. Click the "Connect Wallet" button in the top right corner.');
         } else {
-          console.error('Failed to paint pixel:', result.error);
-          
-          // Show a more user-friendly error for wallet connection issues
-          if (result.error === 'Wallet not connected') {
-            alert('Please connect your wallet to paint pixels. Click the "Connect Wallet" button in the top right corner.');
-          } else {
-            alert(`Error: ${result.error}`);
-          }
+          alert(`Error: ${result.error}`);
         }
-      } catch (error) {
-        console.error('Error painting pixel:', error);
-      } finally {
-        setIsLoading(false);
       }
+    } catch (error) {
+      console.error('Error painting pixel:', error);
+    } finally {
+      setIsLoading(false);
     }
   };
   
@@ -319,7 +373,7 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
             Color: <span className="inline-block w-4 h-4 align-middle" style={{ backgroundColor: currentColor }}></span> {currentColor}
           </p>
           <button
-            onClick={() => canvasService?.paintPixel(viewport.selectedX!, viewport.selectedY!, currentColor)}
+            onClick={handlePaintButtonClick}
             className="bg-blue-500 hover:bg-blue-600 text-white py-2 px-4 rounded w-full"
             disabled={isLoading}
           >

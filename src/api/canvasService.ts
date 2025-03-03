@@ -305,28 +305,61 @@ export class EthersCanvasService implements CanvasService {
       }
     };
     
-    // Try to add error handling to the provider
     try {
-      // Safely access the provider - if it exists and has an 'on' method
-      const provider = this.contract.runner as any; // The provider is usually available as runner in ethers v6
-      if (provider && typeof provider.on === 'function') {
-        provider.on("error", handleConnectionError);
-      }
-    } catch (providerError) {
-      console.warn("Could not attach error handler to provider:", providerError);
-    }
-    
-    try {
+      // Set up timeout handling for the event subscription
+      const setupTimeout = setTimeout(() => {
+        console.warn("Event subscription setup timed out. Using fallback mechanism.");
+        
+        // Since we can't guarantee the event subscription worked,
+        // set up a polling mechanism as fallback
+        let lastPollTime = Date.now();
+        const POLL_INTERVAL = 20000; // 20 seconds
+        
+        const pollInterval = setInterval(async () => {
+          try {
+            // Check for new events by querying recent blocks
+            const currentBlock = await this.contract.runner?.provider?.getBlockNumber() || 0;
+            const fromBlock = Math.max(0, currentBlock - 10); // Last 10 blocks
+            
+            console.log(`Polling for PixelPainted events from block ${fromBlock} to ${currentBlock}`);
+            
+            const events = await this.contract.queryFilter(eventFilter, fromBlock);
+            
+            // Process any events that are newer than our last poll
+            events.forEach((event: any) => {
+              if (event.args && event.args.length >= 4) {
+                const [x, y, color, painter] = event.args;
+                listener(x, y, color, painter);
+              }
+            });
+            
+            lastPollTime = Date.now();
+          } catch (pollError) {
+            console.error("Error polling for events:", pollError);
+          }
+        }, POLL_INTERVAL);
+        
+        // Add the interval to our cleanup function
+        const originalCleanup = cleanup;
+        cleanup = () => {
+          clearInterval(pollInterval);
+          originalCleanup();
+        };
+      }, 10000); // 10 second timeout
+      
       // Set up the event listener
       this.contract.on(eventFilter, listener);
+      
+      // Clear the timeout if we successfully set up the listener
+      clearTimeout(setupTimeout);
     } catch (error) {
       console.error("Error setting up event listener:", error);
       // Return empty cleanup function
       return () => {};
     }
     
-    // Return a function to remove the listener
-    return () => {
+    // Create a cleanup function that we might enhance later
+    let cleanup = () => {
       try {
         this.contract.off(eventFilter, listener);
         
@@ -343,6 +376,9 @@ export class EthersCanvasService implements CanvasService {
         console.error("Error removing event listener:", error);
       }
     };
+    
+    // Return the cleanup function
+    return cleanup;
   }
 
   /**

@@ -11,6 +11,7 @@ class ThrottledProvider extends ethers.JsonRpcProvider {
   private isProcessing = false;
   private maxBatchSize = 1; // Start with no batching to be safe
   private requestDelay = 50; // ms between requests
+  private maxTimeout = 20000; // 20 seconds timeout for requests
 
   // Keep track of known problematic function signatures
   private knownIssues: Record<string, { mockResponse: any, logMessage: string }> = {
@@ -88,10 +89,36 @@ class ThrottledProvider extends ethers.JsonRpcProvider {
           // Add small delay to avoid overwhelming the provider
           await new Promise(r => setTimeout(r, this.requestDelay));
           
-          // Call the parent class's send method
-          const result = await super.send(method, params);
-          resolve(result);
-          return true;
+          // Create a timeout promise to prevent hanging
+          let timeoutId: NodeJS.Timeout;
+          const timeoutPromise = new Promise<never>((_, timeoutReject) => {
+            timeoutId = setTimeout(() => {
+              timeoutReject(new Error(`Request timed out after ${this.maxTimeout}ms: ${method}`));
+            }, this.maxTimeout);
+          });
+          
+          // Add a cleanup function for the timeout
+          const clearTimeoutFn = () => {
+            if (timeoutId) clearTimeout(timeoutId);
+          };
+          
+          // Create the actual request promise
+          const requestPromise = super.send(method, params);
+          
+          try {
+            // Race between the request and the timeout
+            const result = await Promise.race([requestPromise, timeoutPromise]);
+            
+            // Clear the timeout to prevent memory leaks
+            clearTimeoutFn();
+            
+            resolve(result);
+            return true;
+          } catch (error) {
+            // Always clean up the timeout
+            clearTimeoutFn();
+            throw error; // Re-throw to be caught by the outer catch
+          }
         } catch (error: any) {
           // If we hit a batch size error, reduce the batch size further
           if (error && error.message && error.message.includes("Batch size is too large")) {
@@ -109,6 +136,27 @@ class ThrottledProvider extends ethers.JsonRpcProvider {
               reject(retryError);
               return false;
             }
+          }
+          // Handle timeout errors with more useful feedback
+          else if (error && error.message && error.message.includes("timed out")) {
+            console.warn(`RPC request timed out for ${method}:`, error.message);
+            
+            // For read operations, return mock data to keep UI functional
+            if (method === 'eth_call') {
+              console.log('Returning empty response due to timeout for eth_call');
+              resolve('0x');
+              return true;
+            }
+            
+            // For chain ID query, return a default value
+            if (method === 'eth_chainId') {
+              console.log('Returning default chain ID due to timeout');
+              resolve('0x1'); // Mainnet
+              return true;
+            }
+            
+            reject(error);
+            return false;
           } else {
             reject(error);
             return false;
@@ -303,20 +351,31 @@ export async function paintPixel(
       // Set a timeout of 20 seconds to prevent UI hanging
       const confirmationPromise = tx.wait(1); // Wait for 1 confirmation
       
-      // Create a timeout promise
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error("Transaction confirmation timeout")), 20000);
+      // Create a timeout promise with proper variable scoping
+      let timeoutId = setTimeout(() => {}, 0); // Initialize with a dummy timeout
+      clearTimeout(timeoutId); // Clear the dummy timeout
+      
+      const timeoutPromise = new Promise<never>((_, reject) => {
+        timeoutId = setTimeout(() => {
+          reject(new Error("Transaction confirmation timeout"));
+        }, 20000);
       });
       
-      // Race between confirmation and timeout
-      const receipt = await Promise.race([confirmationPromise, timeoutPromise]);
-      
-      console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
-      
-      return {
-        success: true,
-        transactionHash: tx.hash
-      };
+      try {
+        // Race between confirmation and timeout
+        const receipt = await Promise.race([confirmationPromise, timeoutPromise]);
+        
+        clearTimeout(timeoutId);
+        console.log(`Transaction confirmed in block ${receipt.blockNumber}`);
+        
+        return {
+          success: true,
+          transactionHash: tx.hash
+        };
+      } catch (error) {
+        clearTimeout(timeoutId);
+        throw error;
+      }
     } catch (waitError: any) {
       console.warn("Transaction confirmation timed out, but transaction was submitted:", tx.hash);
       
@@ -348,4 +407,4 @@ export async function paintPixel(
       error: error.message || "Unknown error during transaction"
     };
   }
-} 
+}
