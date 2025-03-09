@@ -17,6 +17,41 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
   const [isLoading, setIsLoading] = useState(false);
   const [updateIntervalId, setUpdateIntervalId] = useState<NodeJS.Timeout | null>(null);
   
+  // Debug helper to check a specific pixel's status
+  const checkSpecificPixel = useCallback((x: number, y: number) => {
+    // Get the pixel data from store
+    const { getPixel } = useCanvasStore.getState();
+    const pixel = getPixel(x, y);
+    
+    console.log(`======= DEBUG PIXEL (${x},${y}) =======`);
+    console.log(`Pixel data:`, pixel);
+    
+    // Get hex color
+    if (pixel) {
+      console.log(`Color value: "${pixel.color}"`);
+      console.log(`Is valid hex: ${/^#[0-9A-F]{6}$/i.test(pixel.color)}`);
+      console.log(`Is black (#000000): ${pixel.color === '#000000'}`);
+      console.log(`Is white (#FFFFFF): ${pixel.color === '#FFFFFF'}`);
+    } else {
+      console.log(`No pixel data found - would render with DEFAULT_COLOR: ${DEFAULT_COLOR}`);
+    }
+    console.log(`====================================`);
+    
+    return pixel;
+  }, []);
+  
+  // Debug button to check a specific pixel
+  useEffect(() => {
+    // Add a global helper for debugging from console
+    (window as any).checkPixel = (x: number, y: number) => checkSpecificPixel(x, y);
+    (window as any).getCanvasState = () => useCanvasStore.getState();
+    
+    return () => {
+      delete (window as any).checkPixel;
+      delete (window as any).getCanvasState;
+    };
+  }, [checkSpecificPixel]);
+  
   // Get state from stores
   const {
     viewport,
@@ -136,8 +171,28 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
       for (let x = Math.max(0, visibleStartX); x < Math.min(width, visibleEndX); x++) {
         const pixel = getPixel(x, y);
         
+        // Debug for specific coordinates (e.g., where you've painted a black pixel)
+        if (x === 50 && y === 50) { // Replace with your black pixel coordinates
+          console.log(`Rendering pixel at (50,50):`, pixel);
+        }
+        
         // Use pixel color if available, otherwise use default color
-        ctx.fillStyle = pixel ? pixel.color : DEFAULT_COLOR;
+        let debugColor = null;
+        
+        if (pixel) {
+          ctx.fillStyle = pixel.color;
+          
+          // Debug - highlight potential problem pixels with special colors for visualization
+          if (pixel.color === '#000000') { 
+            debugColor = 'red'; // Highlight black pixels in red to make them visible
+            console.log(`Found black pixel at (${x},${y}):`, pixel);
+          } else if (pixel.color === '' || !pixel.color.startsWith('#')) {
+            debugColor = 'lime'; // Highlight invalid colors in lime
+            console.log(`Found invalid color at (${x},${y}):`, pixel.color);
+          }
+        } else {
+          ctx.fillStyle = DEFAULT_COLOR;
+        }
         
         // Calculate pixel position on canvas
         const canvasX = x * viewport.scale + viewport.offsetX;
@@ -145,6 +200,13 @@ export const Canvas: React.FC<CanvasProps> = ({ width, height }) => {
         
         // Draw pixel
         ctx.fillRect(canvasX, canvasY, viewport.scale, viewport.scale);
+        
+        // If debugging, highlight problematic pixels with a border
+        if (debugColor && viewport.scale > 4) {
+          ctx.strokeStyle = debugColor;
+          ctx.lineWidth = 2;
+          ctx.strokeRect(canvasX, canvasY, viewport.scale, viewport.scale);
+        }
       }
     }
     

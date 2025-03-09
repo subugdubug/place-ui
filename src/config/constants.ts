@@ -2,7 +2,7 @@
 export const DEFAULT_CANVAS_WIDTH = 100;
 export const DEFAULT_CANVAS_HEIGHT = 100;
 export const DEFAULT_CHUNK_SIZE = 20;
-export const DEFAULT_COLOR = '#FFFFFF';
+export const DEFAULT_COLOR = '#EFEFEF'; // Very light gray to distinguish from white or black
 export const MAX_VIEWPORT_SCALE = 40;
 export const MIN_VIEWPORT_SCALE = 1;
 

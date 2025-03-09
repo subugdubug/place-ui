@@ -80,8 +80,17 @@ export const PIXEL_PLACE_ABI = [
 
 // Convert bytes3 color from contract to hex color string
 export function bytes3ToHex(bytes3: string): string {
+  console.log(`bytes3ToHex input: "${bytes3}" (${typeof bytes3})`);
+  
+  // Handle special cases for black or empty values
+  if (!bytes3 || bytes3 === '0x' || bytes3 === '0x0' || bytes3 === '0x00' || bytes3 === '0x000') {
+    console.log(`  → Identified as black, returning #000000`);
+    return '#000000'; // Ensure black is properly represented
+  }
+  
   // Remove '0x' prefix and ensure 6 characters with leading zeros
-  const hex = bytes3.substring(2).padStart(6, '0');
+  const hex = bytes3.startsWith('0x') ? bytes3.substring(2).padStart(6, '0') : bytes3.padStart(6, '0');
+  console.log(`  → Processed to: #${hex}`);
   return `#${hex}`;
 }
 

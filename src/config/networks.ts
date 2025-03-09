@@ -19,7 +19,7 @@ export const NETWORK_CONFIGS: Record<string, NetworkConfig> = {
   "11155111": {
     chainId: 11155111,
     networkName: "Sepolia Testnet",
-    contractAddress: "0x2CB3C35A1b177387cB3AC2E727DF5Ec3dD15bFa6", // To be filled after deployment
+    contractAddress: "0x98cb468f12e856FAf2320e2B3d2969B97d59Eb91", // To be filled after deployment
     blockExplorerUrl: "https://sepolia.etherscan.io",
     rpcUrl: process.env.NEXT_PUBLIC_SEPOLIA_RPC_URL || "",
   },

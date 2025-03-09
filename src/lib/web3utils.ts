@@ -286,12 +286,38 @@ export function processCanvasSectionData(
   startX: number,
   startY: number
 ): CanvasChunk {
+  console.log(`Processing canvas section data from (${startX},${startY})`);
+  
+  // Add sample debugging for a few pixels in the data
+  if (rawData[0] && rawData[0][0]) {
+    console.log(`Sample pixel data from contract at (${startX},${startY}): "${rawData[0][0]}"`);
+  }
+  
+  // Check specifically for potential black pixels
+  for (let y = 0; y < rawData.length; y++) {
+    for (let x = 0; x < rawData[y].length; x++) {
+      const color = rawData[y][x];
+      if (color === '0x0' || color === '0x00' || color === '0x000000' || color === '0x0000' || color === '0x') {
+        console.log(`Found potential black pixel in raw data at (${startX + x},${startY + y}): "${color}"`);
+      }
+    }
+  }
+  
   return rawData.map((row, y) => 
-    row.map((color, x) => ({
-      x: startX + x,
-      y: startY + y,
-      color: bytes3ToHex(color)
-    }))
+    row.map((color, x) => {
+      const hexColor = bytes3ToHex(color);
+      
+      // Log black pixels specifically
+      if (hexColor === '#000000' || color === '0x0' || color === '0x00' || color === '0x000000') {
+        console.log(`Converting pixel at (${startX + x},${startY + y}) from "${color}" to "${hexColor}"`);
+      }
+      
+      return {
+        x: startX + x,
+        y: startY + y,
+        color: hexColor
+      };
+    })
   );
 }
 

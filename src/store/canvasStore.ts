@@ -161,6 +161,16 @@ export const useCanvasStore = create<CanvasStore>((set, get) => ({
     const relativeX = x - chunkStartX;
     const relativeY = y - chunkStartY;
     
+    // Debug for specific coordinates (e.g., where you've painted a black pixel)
+    if (x === 50 && y === 50) { // Replace with your black pixel coordinates
+      console.log(`getPixel(50,50) - Chunk: ${chunkKey}, RelativePos: (${relativeX},${relativeY})`);
+      if (chunk[relativeY] && chunk[relativeY][relativeX]) {
+        console.log(`  → Found pixel: `, chunk[relativeY][relativeX]);
+      } else {
+        console.log(`  → Pixel not found in chunk`);
+      }
+    }
+    
     if (chunk[relativeY] && chunk[relativeY][relativeX]) {
       return chunk[relativeY][relativeX];
     }
